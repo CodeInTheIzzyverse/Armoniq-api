@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import {
   IsEnum,
-  IsNumberString,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
@@ -20,7 +20,7 @@ class EnvironmentVariables {
   @IsOptional()
   NODE_ENV?: Environment;
 
-  @IsNumberString()
+  @IsNumber()
   @IsOptional()
   PORT?: number;
 

@@ -7,6 +7,7 @@ export { default as googleMapsConfig } from './google-maps.config';
 export { default as paymentConfig } from './payment.config';
 export { default as swaggerConfig } from './swagger.config';
 export { validate } from './env.validation';
+export { setupSwagger } from './swagger-setup';
 
 export type { AppConfig } from './app.config';
 export type { AuthConfig } from './auth.config';

@@ -3,6 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { setupSwagger } from './config/swagger-setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,7 @@ async function bootstrap() {
   const port = configService.get<number>('app.port') || 4000;
   const apiPrefix = configService.get<string>('app.apiPrefix') || 'api';
   const frontendUrls = configService.get<string[]>('app.frontendUrls') || [];
+  const nodeEnv = configService.get<string>('app.nodeEnv') || 'development';
 
   app.setGlobalPrefix(apiPrefix);
 
@@ -39,9 +41,18 @@ async function bootstrap() {
     }),
   );
 
+  if (nodeEnv !== 'production') {
+    setupSwagger(app, configService);
+  }
+
   await app.listen(port);
   console.log(
     `Application is running on: http://localhost:${port}/${apiPrefix}`,
   );
+  if (nodeEnv !== 'production') {
+    console.log(
+      `Swagger documentation available at: http://localhost:${port}/docs`,
+    );
+  }
 }
 void bootstrap();

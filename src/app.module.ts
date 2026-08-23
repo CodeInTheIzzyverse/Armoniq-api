@@ -14,6 +14,7 @@ import {
 } from './config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { HealthController } from './controllers/health.controller';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { SerializationInterceptor } from './interceptors/serialization.interceptor';
@@ -36,7 +37,7 @@ import { SerializationInterceptor } from './interceptors/serialization.intercept
       envFilePath: ['.env', '.env.local'],
     }),
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     {
