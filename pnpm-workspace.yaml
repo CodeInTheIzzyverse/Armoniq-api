@@ -1,0 +1,9 @@
+allowBuilds:
+  '@scarf/scarf': false
+  '@swc/core': false
+  argon2: false
+  cpu-features: false
+  mongodb-memory-server: false
+  protobufjs: false
+  ssh2: false
+  unrs-resolver: false
