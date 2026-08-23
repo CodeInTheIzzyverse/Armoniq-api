@@ -554,8 +554,7 @@ The API MVP includes:
 34. Rate limiting and security middleware.
 35. Unit, integration, and E2E testing.
 36. GitHub Actions CI.
-37. Docker build.
-38. Production deployment configuration.
+37. Production deployment configuration.
 
 ## 7. Important Features
 
@@ -826,7 +825,6 @@ GitHub Actions must automate, at minimum:
 - Unit tests.
 - Integration tests.
 - Production build.
-- Docker image build.
 
 The CI pipeline must run for pull requests and appropriate repository branches.
 
@@ -867,7 +865,7 @@ The following documents are authoritative technical references for implementatio
 | [`docs/DATABASE.md`](docs/DATABASE.md) | MongoDB data model, schemas, indexes, relationships, and persistence decisions |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Security controls, threat considerations, and hardening |
 | [`docs/TESTING.md`](docs/TESTING.md) | Unit, integration, E2E, database testing, coverage, and test environments |
-| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environment configuration, CI/CD, Docker, and deployment |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environment configuration, CI/CD, and deployment |
 
 These documents should remain consistent with this specification. When an implementation decision changes the scope or architecture, the relevant documentation must be updated.
 
@@ -928,7 +926,6 @@ These documents should remain consistent with this specification. When an implem
 ### CI/CD and Deployment
 
 - GitHub Actions.
-- Docker.
 - Vercel.
 
 ## 13. API Architecture Principles

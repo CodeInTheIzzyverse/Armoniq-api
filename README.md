@@ -1,6 +1,6 @@
 # Armoniq API
 
-[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=bugs)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=coverage)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api)
+[![CI/CD Pipeline](https://github.com/CodeInTheIzzyverse/Armoniq-api/actions/workflows/build.yml/badge.svg)](https://github.com/CodeInTheIzzyverse/Armoniq-api/actions/workflows/build.yml) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=bugs)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=coverage)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api)
 
 > RESTful backend API for Armoniq, a fictional music store ecommerce platform, built with NestJS, TypeScript, MongoDB Atlas, and a security-focused architecture.
 
@@ -41,7 +41,6 @@ The project is intentionally designed as a realistic portfolio application, emph
 - Security middleware and throttling.
 - Automated unit, integration, and E2E testing.
 - GitHub Actions CI/CD.
-- Docker build validation.
 
 ## Tech Stack
 
@@ -133,7 +132,6 @@ Install:
 - Node.js LTS.
 - pnpm.
 - Git.
-- Docker Desktop for Testcontainers-based database tests.
 
 External services required for local development depend on the feature being tested:
 
@@ -301,8 +299,7 @@ The CI pipeline includes:
 5. Run integration tests.
 6. Run E2E tests where configured.
 7. Build the application.
-8. Validate Docker build.
-9. Perform quality checks where configured.
+8. Perform quality checks where configured.
 
 ## Security
 
