@@ -1,5 +1,7 @@
 # Armoniq API
 
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=bugs)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=coverage)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api) [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=CodeInTheIzzyverse_Armoniq-api&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=CodeInTheIzzyverse_Armoniq-api)
+
 > RESTful backend API for Armoniq, a fictional music store ecommerce platform, built with NestJS, TypeScript, MongoDB Atlas, and a security-focused architecture.
 
 **Status:** In Development  
@@ -45,33 +47,33 @@ The project is intentionally designed as a realistic portfolio application, emph
 
 | Category | Technology |
 | --- | --- |
-| Runtime | Node.js |
-| Framework | NestJS |
-| Language | TypeScript |
-| Package Manager | pnpm |
+| Runtime | ![Node.js](https://img.shields.io/badge/node.js-6DA55F.svg?style=for-the-badge&logo=node.js&logoColor=white) |
+| Framework | ![NestJS](https://img.shields.io/badge/nestjs-%23E0234E.svg?style=for-the-badge&logo=nestjs&logoColor=white) |
+| Language | ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white) |
+| Package Manager | ![PNPM](https://img.shields.io/badge/pnpm-%234a4a4a.svg?style=for-the-badge&logo=pnpm&logoColor=f69220) |
 | API Style | REST + HATEOAS |
-| Database | MongoDB Atlas Free Tier |
+| Database | ![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white) |
 | ODM | Mongoose / `@nestjs/mongoose` |
-| Authentication | JWT + Passport |
+| Authentication | ![JWT/JSON Web Token](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens) + Passport |
 | Password Hashing | Argon2 |
 | Validation | class-validator + class-transformer |
 | Security | Helmet, CORS, throttling, secure cookies |
-| API Documentation | Swagger / OpenAPI |
+| API Documentation | ![Swagger](https://img.shields.io/badge/-Swagger-%23Clojure?style=for-the-badge&logo=swagger&logoColor=white) / ![OpenAPI Specification](https://img.shields.io/badge/openapiinitiative-%23000000.svg?style=for-the-badge&logo=openapiinitiative&logoColor=white) |
 | Events | NestJS Event Emitter |
 | Media | Cloudinary |
 | Email | Resend |
 | Payments | Wompi Sandbox |
 | HTTP Client | Axios |
 | IDs | UUID |
-| Unit Testing | Vitest |
-| Integration Testing | Vitest + MongoDB Memory Server |
+| Unit Testing | ![Vitest](https://img.shields.io/badge/-Vitest-252529?style=for-the-badge&logo=vitest&logoColor=FCC72B) |
+| Integration Testing | ![Vitest](https://img.shields.io/badge/-Vitest-252529?style=for-the-badge&logo=vitest&logoColor=FCC72B) + MongoDB Memory Server |
 | E2E Testing | Supertest |
 | Database Integration Testing | Testcontainers MongoDB |
-| Code Quality | ESLint + Prettier |
+| Code Quality | ![ESLint](https://img.shields.io/badge/ESLint-4B3263?style=for-the-badge&logo=eslint&logoColor=white) + ![Prettier](https://img.shields.io/badge/prettier-%23192a32?style=for-the-badge&logo=prettier&logoColor=dc524a) |
 | Git Hooks | Husky + lint-staged + Commitlint |
-| Code Analysis | SonarCloud |
-| CI/CD | GitHub Actions |
-| Deployment | Vercel |
+| Code Analysis | ![SonarQube](https://img.shields.io/badge/sonarqube-%23126ED3.svg?style=for-the-badge&logo=sonarqubecloud&logoColor=white) |
+| CI/CD | ![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white) |
+| Deployment | ![Vercel](https://img.shields.io/badge/vercel-%23000000.svg?style=for-the-badge&logo=vercel&logoColor=white) |
 
 ## Architecture
 
