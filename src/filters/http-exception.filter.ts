@@ -3,43 +3,43 @@ import {
   Catch,
   ArgumentsHost,
   HttpException,
-  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 
-@Catch()
-export class HttpExceptionFilter implements ExceptionFilter {
+@Catch(HttpException)
+export class HttpExceptionFilter implements ExceptionFilter<HttpException> {
   private readonly logger = new Logger(HttpExceptionFilter.name);
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: HttpException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string | unknown[] = 'Internal server error';
-    let error = 'Internal Server Error';
+    const statusCode: number = exception.getStatus();
+    const exceptionResponse = exception.getResponse();
 
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
+    let message: string | unknown[];
+    let error: string;
 
-      if (typeof exceptionResponse === 'string') {
-        message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object') {
-        const responseObj = exceptionResponse as Record<string, unknown>;
-        message =
-          (responseObj.message as string | unknown[]) || exception.message;
-        error = (responseObj.error as string) || exception.name;
-      }
+    if (typeof exceptionResponse === 'string') {
+      message = exceptionResponse;
+      error = exception.name;
+    } else if (typeof exceptionResponse === 'object') {
+      const responseObj = exceptionResponse as Record<string, unknown>;
+      message =
+        (responseObj.message as string | unknown[]) || exception.message;
+      error = (responseObj.error as string) || exception.name;
+    } else {
+      message = exception.message;
+      error = exception.name;
     }
 
     const timestamp = new Date().toISOString();
     const path = request.url;
 
     const errorResponse = {
-      statusCode: status,
+      statusCode,
       timestamp,
       path,
       error: typeof message === 'string' ? error : undefined,
@@ -47,15 +47,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
       errors: Array.isArray(message) ? message : undefined,
     };
 
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (statusCode >= 500) {
       this.logger.error(
-        `${request.method} ${path} ${status}`,
-        exception instanceof Error ? exception.stack : '',
+        `${request.method} ${path} ${statusCode}`,
+        exception.stack || '',
       );
     } else {
-      this.logger.warn(`${request.method} ${path} ${status}`);
+      this.logger.warn(`${request.method} ${path} ${statusCode}`);
     }
 
-    response.status(status).json(errorResponse);
+    response.status(statusCode).json(errorResponse);
   }
 }

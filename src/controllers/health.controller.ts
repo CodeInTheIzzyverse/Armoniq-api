@@ -1,32 +1,79 @@
-import { Controller, Get } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { HealthService } from '../services/health.service';
+import {
+  HealthCheckResponse,
+  HealthStatus,
+  LivenessResponse,
+  ReadinessResponse,
+} from '../dto/health.dto';
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
+  constructor(private readonly healthService: HealthService) {}
+
   @Get()
-  @ApiOperation({ summary: 'Health check endpoint' })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Full health check' })
   @ApiResponse({
     status: 200,
     description: 'Service is healthy',
-    schema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', example: 'ok' },
-        timestamp: { type: 'string', format: 'date-time' },
-        uptime: { type: 'number', example: 12345.67 },
-      },
-    },
+    type: HealthCheckResponse,
   })
   @ApiResponse({
     status: 503,
-    description: 'Service is unavailable',
+    description: 'Service is degraded or unavailable',
+    type: HealthCheckResponse,
   })
-  check() {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    };
+  async check(): Promise<HealthCheckResponse> {
+    const health = await this.healthService.check();
+    if (health.status === HealthStatus.ERROR) {
+      throw new ServiceUnavailableException(health);
+    }
+    return health;
+  }
+
+  @Get('live')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Liveness probe (Kubernetes)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Service is alive',
+    type: LivenessResponse,
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service is not alive',
+  })
+  checkLiveness(): LivenessResponse {
+    return this.healthService.checkLiveness();
+  }
+
+  @Get('ready')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Readiness probe (Kubernetes)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Service is ready to accept traffic',
+    type: ReadinessResponse,
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'Service is not ready',
+    type: ReadinessResponse,
+  })
+  async checkReadiness(): Promise<ReadinessResponse> {
+    const health = await this.healthService.checkReadiness();
+    if (health.status === HealthStatus.ERROR) {
+      throw new ServiceUnavailableException(health);
+    }
+    return health;
   }
 }
