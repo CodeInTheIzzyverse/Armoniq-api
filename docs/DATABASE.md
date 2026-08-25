@@ -40,12 +40,12 @@ The data model follows a **document-oriented** approach that leverages:
 
 ## 2. Users and Authentication
 
-### 2.1 Users Collection
+### 2.1 User Collection
 
-A single `users` collection stores both customers and administrators. User type is determined by the `role` field.
+A single `user` collection stores both customers and administrators. User type is determined by the `role` field.
 
 ```text
-users
+user
 ├── _id: ObjectId
 ├── role: "CLIENT" | "ADMIN"
 ├── firstName: string
@@ -73,14 +73,14 @@ users
 | `email` | Unique | Login lookup, uniqueness constraint |
 | `role` | Single | Administrative user filtering |
 
-### 2.2 Refresh Tokens Collection
+### 2.2 Refresh Token Collection
 
 Refresh tokens are persisted to support token rotation, revocation, logout, reuse detection, and session control.
 
 MongoDB stores **only the hash** of each refresh token. Tokens in plaintext are never persisted.
 
 ```text
-refresh_tokens
+refresh_token
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── tokenHash: string
@@ -108,14 +108,14 @@ refresh_tokens
 | `expiresAt` | TTL | Automatic cleanup of expired tokens |
 | `tokenHash` | Unique | Token lookup during validation |
 
-### 2.3 Auth Tokens Collection
+### 2.3 Auth Token Collection
 
 Email verification and password reset tokens share a single collection with a `type` discriminator.
 
 Tokens are stored **only as hashes**.
 
 ```text
-auth_tokens
+auth_token
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── tokenHash: string
@@ -140,12 +140,12 @@ auth_tokens
 | `expiresAt` | TTL | Automatic cleanup of expired tokens |
 | `tokenHash` | Unique | Token lookup during validation |
 
-### 2.4 Login Attempts Collection
+### 2.4 Login Attempt Collection
 
 Every authentication attempt is recorded for auditing, attack detection, and rate limiting.
 
 ```text
-login_attempts
+login_attempt
 ├── _id: ObjectId
 ├── email: string
 ├── userId: ObjectId | null
@@ -174,12 +174,12 @@ login_attempts
 
 ## 3. Products
 
-### 3.1 Products Collection
+### 3.1 Product Collection
 
 Products are independent documents that reference their category and subcategory.
 
 ```text
-products
+product
 ├── _id: ObjectId
 ├── name: string
 ├── slug: string (unique)
@@ -232,10 +232,10 @@ images[]
 
 ## 4. Categories and Subcategories
 
-### 4.1 Categories Collection
+### 4.1 Category Collection
 
 ```text
-categories
+category
 ├── _id: ObjectId
 ├── name: string
 ├── slug: string (unique)
@@ -252,10 +252,10 @@ categories
 | --- | --- | --- |
 | `slug` | Unique | URL-friendly category pages |
 
-### 4.2 Subcategories Collection
+### 4.2 Subcategory Collection
 
 ```text
-subcategories
+subcategory
 ├── _id: ObjectId
 ├── name: string
 ├── slug: string (unique)
@@ -284,12 +284,12 @@ subcategories
 
 ## 5. Orders
 
-### 5.1 Orders Collection
+### 5.1 Order Collection
 
 Orders are independent documents associated with a customer.
 
 ```text
-orders
+order
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── items: OrderItem[]
@@ -309,7 +309,7 @@ orders
 **Embedded document — `OrderItem`:**
 
 ```text
-items[]
+item[]
 ├── productId: ObjectId → products._id
 ├── name: string
 ├── price: number
@@ -351,12 +351,12 @@ shippingAddress
 
 ## 6. Reviews
 
-### 6.1 Reviews Collection
+### 6.1 Review Collection
 
 Reviews are independent documents linking a user to a product.
 
 ```text
-reviews
+review
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── productId: ObjectId → products._id
@@ -394,12 +394,12 @@ Product 1 ─── N Review
 
 ## 7. Favorites
 
-### 7.1 Favorites Collection
+### 7.1 Favorite Collection
 
 Favorites associate a user with a product.
 
 ```text
-favorites
+favorite
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── productId: ObjectId → products._id
@@ -420,12 +420,12 @@ favorites
 
 ## 8. Addresses
 
-### 8.1 Addresses Collection
+### 8.1 Address Collection
 
 Addresses belong to a customer and are managed through the customer account.
 
 ```text
-addresses
+address
 ├── _id: ObjectId
 ├── userId: ObjectId → users._id
 ├── name: string
@@ -458,12 +458,12 @@ addresses
 
 ## 9. Banners
 
-### 9.1 Banners Collection
+### 9.1 Banner Collection
 
 Promotional banners managed from the admin panel.
 
 ```text
-banners
+banner
 ├── _id: ObjectId
 ├── title: string
 ├── image: string
@@ -487,12 +487,12 @@ banners
 
 ## 10. Home Slides
 
-### 10.1 Slides Collection
+### 10.1 Slide Collection
 
 Homepage hero slides are managed independently from banners.
 
 ```text
-slides
+slide
 ├── _id: ObjectId
 ├── title: string
 ├── description: string
@@ -513,12 +513,12 @@ slides
 
 ## 11. Blog Posts
 
-### 11.1 Blog Posts Collection
+### 11.1 Blog Post Collection
 
 Blog posts are independent documents authored by administrators.
 
 ```text
-blog_posts
+blog_post
 ├── _id: ObjectId
 ├── authorId: ObjectId → users._id
 ├── title: string
@@ -549,12 +549,12 @@ blog_posts
 
 ## 12. Payments
 
-### 12.1 Payments Collection
+### 12.1 Payment Collection
 
 Payments are separated from orders to isolate transactional data from order lifecycle management.
 
 ```text
-payments
+payment
 ├── _id: ObjectId
 ├── orderId: ObjectId → orders._id
 ├── userId: ObjectId → users._id
