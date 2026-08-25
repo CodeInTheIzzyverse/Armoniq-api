@@ -46,9 +46,11 @@ export class User {
 
 	@Prop({ type: Boolean, default: false })
 	isEmailVerified!: boolean;
+
+	createdAt!: Date;
+	updatedAt!: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ role: 1 });

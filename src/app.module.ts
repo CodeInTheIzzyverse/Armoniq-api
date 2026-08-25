@@ -1,6 +1,7 @@
 import { Module, Type } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import {
 	appConfig,
 	authConfig,
@@ -15,6 +16,7 @@ import {
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { AuthModule } from './modules/auth/auth.module';
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './services/health.service';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
@@ -38,7 +40,9 @@ import { SerializationInterceptor } from './interceptors/serialization.intercept
 			validate,
 			envFilePath: ['.env', '.env.local'],
 		}),
+		EventEmitterModule.forRoot(),
 		DatabaseModule,
+		AuthModule,
 	],
 	controllers: [AppController, HealthController],
 	providers: [

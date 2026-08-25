@@ -27,10 +27,12 @@ export class AuthToken {
 
 	@Prop({ type: Date })
 	usedAt?: Date;
+
+	createdAt!: Date;
+	updatedAt!: Date;
 }
 
 export const AuthTokenSchema = SchemaFactory.createForClass(AuthToken);
 
 AuthTokenSchema.index({ userId: 1 });
 AuthTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-AuthTokenSchema.index({ tokenHash: 1 }, { unique: true });
