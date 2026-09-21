@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { AuthConfig } from '../config/auth.config';
 import { UserRepository } from '../repositories/user.repository';
 import { UserRole } from '../enums';
@@ -32,7 +32,7 @@ export class JwtTokenService {
 		private readonly userRepository: UserRepository,
 	) {
 		const authConfig = this.configService.get<AuthConfig>('auth');
-		
+
 		this.accessTokenSecret = authConfig?.jwtAccessSecret || '';
 		this.refreshTokenSecret = authConfig?.jwtRefreshSecret || '';
 		this.accessTokenExpiresIn = authConfig?.jwtAccessExpiresIn || '15m';
@@ -57,13 +57,14 @@ export class JwtTokenService {
 
 		const accessToken = this.jwtService.sign(payload, {
 			secret: this.accessTokenSecret,
-			expiresIn: this.accessTokenExpiresIn,
-		} as any);
+			expiresIn: this.accessTokenExpiresIn as JwtSignOptions['expiresIn'],
+		});
 
 		const refreshToken = this.jwtService.sign(payload, {
 			secret: this.refreshTokenSecret,
-			expiresIn: this.refreshTokenExpiresIn,
-		} as any);
+			expiresIn: this
+				.refreshTokenExpiresIn as JwtSignOptions['expiresIn'],
+		});
 
 		const accessTokenExpiresIn = this.parseExpiresIn(
 			this.accessTokenExpiresIn,

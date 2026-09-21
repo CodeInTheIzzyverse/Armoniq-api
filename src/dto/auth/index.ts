@@ -3,3 +3,5 @@ export { RegisterResponseDto } from './register-response.dto';
 export { VerifyEmailDto } from './verify-email.dto';
 export { ResendVerificationDto } from './resend-verification.dto';
 export { MessageResponseDto } from './message-response.dto';
+export { LoginDto } from './login.dto';
+export { LoginResponseDto } from './login-response.dto';

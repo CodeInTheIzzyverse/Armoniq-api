@@ -8,12 +8,22 @@ import {
 	AuthToken,
 	AuthTokenSchema,
 } from '../../database/schemas/auth-token.schema';
+import {
+	LoginAttempt,
+	LoginAttemptSchema,
+} from '../../database/schemas/login-attempt.schema';
+import {
+	RefreshToken,
+	RefreshTokenSchema,
+} from '../../database/schemas/refresh-token.schema';
 import { AuthController } from '../../controllers/auth.controller';
 import { AuthService } from '../../services/auth.service';
 import { JwtTokenService } from '../../services/jwt.service';
 import { TokenService } from '../../services/token.service';
 import { UserRepository } from '../../repositories/user.repository';
 import { AuthTokenRepository } from '../../repositories/auth-token.repository';
+import { LoginAttemptRepository } from '../../repositories/login-attempt.repository';
+import { RefreshTokenRepository } from '../../repositories/refresh-token.repository';
 import { JwtStrategy } from '../../strategies/jwt.strategy';
 import { EmailModule } from '../../integrations/email/email.module';
 import { UserRegisteredHandler } from '../../events/user-registered.handler';
@@ -23,6 +33,8 @@ import { UserRegisteredHandler } from '../../events/user-registered.handler';
 		MongooseModule.forFeature([
 			{ name: User.name, schema: UserSchema },
 			{ name: AuthToken.name, schema: AuthTokenSchema },
+			{ name: LoginAttempt.name, schema: LoginAttemptSchema },
+			{ name: RefreshToken.name, schema: RefreshTokenSchema },
 		]),
 		PassportModule.register({ defaultStrategy: 'jwt' }),
 		JwtModule.registerAsync({
@@ -57,6 +69,8 @@ import { UserRegisteredHandler } from '../../events/user-registered.handler';
 	providers: [
 		UserRepository,
 		AuthTokenRepository,
+		LoginAttemptRepository,
+		RefreshTokenRepository,
 		AuthService,
 		JwtTokenService,
 		TokenService,

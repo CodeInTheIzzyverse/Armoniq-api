@@ -5,7 +5,11 @@ import {
 	HttpStatus,
 	Post,
 	Query,
+	Req,
+	Res,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
 import {
 	ApiBadRequestResponse,
 	ApiConflictResponse,
@@ -21,6 +25,8 @@ import {
 	RegisterResponseDto,
 	ResendVerificationDto,
 	MessageResponseDto,
+	LoginDto,
+	LoginResponseDto,
 } from '../dto/auth';
 import { ApiErrorResponse } from '../dto/api-error-response.dto';
 import { API_ROUTES } from '../constants/routes';
@@ -28,7 +34,53 @@ import { API_ROUTES } from '../constants/routes';
 @ApiTags('Authentication')
 @Controller(API_ROUTES.AUTH.BASE)
 export class AuthController {
-	constructor(private readonly authService: AuthService) {}
+	constructor(
+		private readonly authService: AuthService,
+		private readonly configService: ConfigService,
+	) {}
+
+	@Post(API_ROUTES.AUTH.LOGIN)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Authenticate a user',
+		description:
+			'Validates credentials and sets secure HTTP-only access and refresh cookies.',
+	})
+	@ApiOkResponse({
+		description: 'User authenticated successfully',
+		type: LoginResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid input data',
+		type: ApiErrorResponse,
+	})
+	async login(
+		@Body() loginDto: LoginDto,
+		@Req() request: Request,
+		@Res({ passthrough: true }) response: Response,
+	): Promise<LoginResponseDto> {
+		const result = await this.authService.login(loginDto, {
+			ip: request.ip || 'unknown',
+			userAgent: request.get('user-agent') || 'unknown',
+		});
+		const secure =
+			this.configService.get<string>('app.nodeEnv') === 'production';
+
+		response.cookie('access_token', result.accessToken, {
+			httpOnly: true,
+			secure,
+			sameSite: 'lax',
+			maxAge: result.response.accessTokenExpiresIn * 1000,
+		});
+		response.cookie('refresh_token', result.refreshToken, {
+			httpOnly: true,
+			secure,
+			sameSite: 'lax',
+			maxAge: result.response.refreshTokenExpiresIn * 1000,
+		});
+
+		return result.response;
+	}
 
 	@Post(API_ROUTES.AUTH.REGISTER)
 	@HttpCode(HttpStatus.CREATED)

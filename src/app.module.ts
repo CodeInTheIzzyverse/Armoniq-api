@@ -1,5 +1,6 @@
 import { Module, Type } from '@nestjs/common';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import {
@@ -41,6 +42,12 @@ import { SerializationInterceptor } from './interceptors/serialization.intercept
 			envFilePath: ['.env', '.env.local'],
 		}),
 		EventEmitterModule.forRoot(),
+		ThrottlerModule.forRoot([
+			{
+				ttl: 60_000,
+				limit: 10,
+			},
+		]),
 		DatabaseModule,
 		AuthModule,
 	],
@@ -51,6 +58,10 @@ import { SerializationInterceptor } from './interceptors/serialization.intercept
 		{
 			provide: APP_FILTER,
 			useClass: HttpExceptionFilter as Type,
+		},
+		{
+			provide: APP_GUARD,
+			useClass: ThrottlerGuard,
 		},
 		{
 			provide: APP_INTERCEPTOR,

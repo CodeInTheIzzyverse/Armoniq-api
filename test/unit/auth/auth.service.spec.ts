@@ -10,9 +10,17 @@ import { AuthService } from '../../../src/services/auth.service';
 import { UserRepository } from '../../../src/repositories/user.repository';
 import { TokenService } from '../../../src/services/token.service';
 import { AuthTokenRepository } from '../../../src/repositories/auth-token.repository';
-import { UserRole, AuthTokenType } from '../../../src/enums';
+import {
+	AuthTokenType,
+	LoginAttemptReason,
+	UserRole,
+} from '../../../src/enums';
 import { AUTH_MESSAGES } from '../../../src/constants/auth-messages';
 import { UserModel } from '../../../src/models/user.model';
+import { JwtTokenService } from '../../../src/services/jwt.service';
+import { LoginAttemptRepository } from '../../../src/repositories/login-attempt.repository';
+import { RefreshTokenRepository } from '../../../src/repositories/refresh-token.repository';
+import { hashPassword } from '../../../src/utils/password';
 
 describe('AuthService', () => {
 	let service: AuthService;
@@ -20,6 +28,9 @@ describe('AuthService', () => {
 	let tokenService: TokenService;
 	let authTokenRepository: AuthTokenRepository;
 	let eventEmitter: EventEmitter2;
+	let jwtTokenService: JwtTokenService;
+	let loginAttemptRepository: LoginAttemptRepository;
+	let refreshTokenRepository: RefreshTokenRepository;
 
 	const mockUser: UserModel = {
 		id: '507f1f77bcf86cd799439011',
@@ -56,6 +67,12 @@ describe('AuthService', () => {
 					},
 				},
 				{
+					provide: JwtTokenService,
+					useValue: {
+						generateTokens: vi.fn(),
+					},
+				},
+				{
 					provide: AuthTokenRepository,
 					useValue: {
 						findByTokenHashAndType: vi.fn(),
@@ -67,6 +84,18 @@ describe('AuthService', () => {
 						emit: vi.fn(),
 					},
 				},
+				{
+					provide: LoginAttemptRepository,
+					useValue: {
+						create: vi.fn(),
+					},
+				},
+				{
+					provide: RefreshTokenRepository,
+					useValue: {
+						create: vi.fn(),
+					},
+				},
 			],
 		}).compile();
 
@@ -76,6 +105,150 @@ describe('AuthService', () => {
 		authTokenRepository =
 			module.get<AuthTokenRepository>(AuthTokenRepository);
 		eventEmitter = module.get<EventEmitter2>(EventEmitter2);
+		jwtTokenService = module.get<JwtTokenService>(JwtTokenService);
+		loginAttemptRepository = module.get<LoginAttemptRepository>(
+			LoginAttemptRepository,
+		);
+		refreshTokenRepository = module.get<RefreshTokenRepository>(
+			RefreshTokenRepository,
+		);
+	});
+
+	describe('login', () => {
+		const context = { ip: '127.0.0.1', userAgent: 'vitest' };
+		const loginDto = {
+			email: 'TEST@example.com',
+			password: 'Password123!',
+		};
+
+		it('authenticates verified users and persists only the refresh hash', async () => {
+			const passwordHash = await hashPassword(loginDto.password);
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+				...mockUser,
+				passwordHash,
+				isEmailVerified: true,
+			});
+			vi.spyOn(tokenService, 'verifyToken');
+			const generateTokensSpy = vi
+				.spyOn(jwtTokenService, 'generateTokens')
+				.mockResolvedValue({
+					accessToken: 'access-token',
+					refreshToken: 'refresh-token',
+					accessTokenExpiresIn: 900,
+					refreshTokenExpiresIn: 2592000,
+				});
+			const createRefreshToken = vi.spyOn(
+				refreshTokenRepository,
+				'create',
+			);
+			const createLoginAttempt = vi.spyOn(
+				loginAttemptRepository,
+				'create',
+			);
+
+			const result = await service.login(loginDto, context);
+
+			expect(result.response.email).toBe(mockUser.email);
+			expect(result.accessToken).toBe('access-token');
+			expect(generateTokensSpy).toHaveBeenCalledWith(mockUser.id);
+			expect(createRefreshToken).toHaveBeenCalledWith(
+				expect.objectContaining({
+					userId: mockUser.id,
+					ip: context.ip,
+					userAgent: context.userAgent,
+				}),
+			);
+			const refreshToken = createRefreshToken.mock.calls[0][0].tokenHash;
+			expect(refreshToken).not.toBe('refresh-token');
+			expect(createLoginAttempt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reason: LoginAttemptReason.SUCCESS,
+					success: true,
+				}),
+			);
+		});
+
+		it('records invalid credentials without revealing whether the user exists', async () => {
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
+			const createLoginAttempt = vi.spyOn(
+				loginAttemptRepository,
+				'create',
+			);
+
+			await expect(service.login(loginDto, context)).rejects.toThrow(
+				AUTH_MESSAGES.LOGIN.INVALID_CREDENTIALS,
+			);
+			expect(createLoginAttempt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reason: LoginAttemptReason.USER_NOT_FOUND,
+					success: false,
+				}),
+			);
+		});
+
+		it('records an incorrect password', async () => {
+			const passwordHash = await hashPassword('DifferentPass123!');
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+				...mockUser,
+				passwordHash,
+				isEmailVerified: true,
+			});
+			const createLoginAttempt = vi.spyOn(
+				loginAttemptRepository,
+				'create',
+			);
+
+			await expect(service.login(loginDto, context)).rejects.toThrow(
+				AUTH_MESSAGES.LOGIN.INVALID_CREDENTIALS,
+			);
+			expect(createLoginAttempt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reason: LoginAttemptReason.INVALID_CREDENTIALS,
+				}),
+			);
+		});
+
+		it('does not expose login-attempt persistence failures', async () => {
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
+			vi.spyOn(loginAttemptRepository, 'create').mockRejectedValue(
+				new Error('database unavailable'),
+			);
+
+			await expect(service.login(loginDto, context)).rejects.toThrow(
+				AUTH_MESSAGES.LOGIN.INVALID_CREDENTIALS,
+			);
+		});
+
+		it('rejects disabled and unverified accounts with tracked reasons', async () => {
+			const createLoginAttempt = vi.spyOn(
+				loginAttemptRepository,
+				'create',
+			);
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+				...mockUser,
+				isActive: false,
+			});
+			await expect(service.login(loginDto, context)).rejects.toThrow(
+				AUTH_MESSAGES.LOGIN.ACCOUNT_DISABLED,
+			);
+
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(mockUser);
+			const passwordHash = await hashPassword(loginDto.password);
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+				...mockUser,
+				passwordHash,
+			});
+			await expect(service.login(loginDto, context)).rejects.toThrow(
+				AUTH_MESSAGES.LOGIN.ACCOUNT_NOT_VERIFIED,
+			);
+
+			expect(createLoginAttempt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reason: LoginAttemptReason.EMAIL_NOT_VERIFIED,
+					success: false,
+				}),
+			);
+		});
 	});
 
 	it('should be defined', () => {
@@ -126,6 +299,48 @@ describe('AuthService', () => {
 			await expect(service.register(registerDto)).rejects.toThrow(
 				ConflictException,
 			);
+			await expect(service.register(registerDto)).rejects.toThrow(
+				AUTH_MESSAGES.REGISTRATION.EMAIL_ALREADY_EXISTS,
+			);
+		});
+
+		it('should normalize the email and never accept a client role', async () => {
+			const findByEmailSpy = vi
+				.spyOn(userRepository, 'findByEmail')
+				.mockResolvedValue(null);
+			const createSpy = vi
+				.spyOn(userRepository, 'create')
+				.mockResolvedValue(mockUser);
+			vi.spyOn(
+				tokenService,
+				'createEmailVerificationToken',
+			).mockResolvedValue({
+				token: 'verification-token',
+				tokenHash: 'hashed-token',
+				expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+			});
+
+			await service.register({
+				...registerDto,
+				email: 'TEST@example.com',
+			});
+
+			expect(findByEmailSpy).toHaveBeenCalledWith('test@example.com');
+			expect(createSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					email: 'test@example.com',
+					role: UserRole.CLIENT,
+				}),
+			);
+		});
+
+		it('should translate a concurrent duplicate email into ConflictException', async () => {
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
+			vi.spyOn(userRepository, 'create').mockRejectedValue({
+				code: 11000,
+				keyPattern: { email: 1 },
+			});
+
 			await expect(service.register(registerDto)).rejects.toThrow(
 				AUTH_MESSAGES.REGISTRATION.EMAIL_ALREADY_EXISTS,
 			);

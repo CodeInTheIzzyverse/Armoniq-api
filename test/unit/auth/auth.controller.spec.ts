@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from '../../../src/controllers/auth.controller';
 import { AuthService } from '../../../src/services/auth.service';
-import { RegisterDto, ResendVerificationDto } from '../../../src/dto/auth';
+import {
+	LoginDto,
+	RegisterDto,
+	ResendVerificationDto,
+} from '../../../src/dto/auth';
+import type { Request, Response } from 'express';
 import { UserRole } from '../../../src/enums';
 import { AUTH_MESSAGES } from '../../../src/constants/auth-messages';
 
@@ -30,8 +36,15 @@ describe('AuthController', () => {
 					provide: AuthService,
 					useValue: {
 						register: vi.fn(),
+						login: vi.fn(),
 						verifyEmail: vi.fn(),
 						resendVerificationEmail: vi.fn(),
+					},
+				},
+				{
+					provide: ConfigService,
+					useValue: {
+						get: vi.fn().mockReturnValue('test'),
 					},
 				},
 			],
@@ -39,6 +52,47 @@ describe('AuthController', () => {
 
 		controller = module.get<AuthController>(AuthController);
 		authService = module.get<AuthService>(AuthService);
+	});
+
+	describe('login', () => {
+		it('sets HTTP-only access and refresh cookies', async () => {
+			const loginDto: LoginDto = {
+				email: 'test@example.com',
+				password: 'Password123!',
+			};
+			const cookieSpy = vi.fn();
+			const response = { cookie: cookieSpy } as unknown as Response;
+			const request = {
+				ip: '127.0.0.1',
+				get: vi.fn().mockReturnValue('vitest'),
+			} as unknown as Request;
+			vi.spyOn(authService, 'login').mockResolvedValue({
+				accessToken: 'access-token',
+				refreshToken: 'refresh-token',
+				response: {
+					...mockUser,
+					accessTokenExpiresIn: 900,
+					refreshTokenExpiresIn: 2592000,
+				},
+			});
+
+			const result = await controller.login(loginDto, request, response);
+
+			expect(result.email).toBe(mockUser.email);
+			expect(cookieSpy).toHaveBeenCalledTimes(2);
+			expect(cookieSpy).toHaveBeenNthCalledWith(
+				1,
+				'access_token',
+				'access-token',
+				expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
+			);
+			expect(cookieSpy).toHaveBeenNthCalledWith(
+				2,
+				'refresh_token',
+				'refresh-token',
+				expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
+			);
+		});
 	});
 
 	it('should be defined', () => {

@@ -1,20 +1,42 @@
 import {
 	ConflictException,
+	ForbiddenException,
 	Injectable,
 	Logger,
 	NotFoundException,
 	BadRequestException,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AUTH_MESSAGES } from '../constants/auth-messages';
-import { UserRole, AuthTokenType } from '../enums';
-import { RegisterDto, RegisterResponseDto } from '../dto/auth';
+import { AuthTokenType, LoginAttemptReason, UserRole } from '../enums';
+import {
+	LoginDto,
+	LoginResponseDto,
+	RegisterDto,
+	RegisterResponseDto,
+} from '../dto/auth';
 import { UserRegisteredEvent } from '../events/user-registered.event';
 import { CreateUserModel } from '../models/user.model';
 import { UserRepository } from '../repositories/user.repository';
 import { TokenService } from './token.service';
 import { AuthTokenRepository } from '../repositories/auth-token.repository';
-import { hashPassword } from '../utils/password';
+import { LoginAttemptRepository } from '../repositories/login-attempt.repository';
+import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
+import { hashPassword, verifyPassword } from '../utils/password';
+import * as argon2 from 'argon2';
+import { JwtTokenService } from './jwt.service';
+
+export interface LoginContext {
+	ip: string;
+	userAgent: string;
+}
+
+export interface LoginResult {
+	response: LoginResponseDto;
+	accessToken: string;
+	refreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -23,14 +45,121 @@ export class AuthService {
 	constructor(
 		private readonly userRepository: UserRepository,
 		private readonly tokenService: TokenService,
+		private readonly jwtTokenService: JwtTokenService,
 		private readonly authTokenRepository: AuthTokenRepository,
+		private readonly loginAttemptRepository: LoginAttemptRepository,
+		private readonly refreshTokenRepository: RefreshTokenRepository,
 		private readonly eventEmitter: EventEmitter2,
 	) {}
 
-	async register(registerDto: RegisterDto): Promise<RegisterResponseDto> {
-		const { email, password, firstName, lastName, role } = registerDto;
+	async login(
+		loginDto: LoginDto,
+		context: LoginContext,
+	): Promise<LoginResult> {
+		const email = loginDto.email.toLowerCase();
+		const user = await this.userRepository.findByEmail(email);
 
-		const existingUser = await this.userRepository.findByEmail(email);
+		if (!user) {
+			await this.recordLoginAttempt({
+				email,
+				...context,
+				success: false,
+				reason: LoginAttemptReason.USER_NOT_FOUND,
+			});
+			throw new UnauthorizedException(
+				AUTH_MESSAGES.LOGIN.INVALID_CREDENTIALS,
+			);
+		}
+
+		if (!user.isActive) {
+			await this.recordLoginAttempt({
+				email,
+				userId: user.id,
+				...context,
+				success: false,
+				reason: LoginAttemptReason.ACCOUNT_DISABLED,
+			});
+			throw new ForbiddenException(AUTH_MESSAGES.LOGIN.ACCOUNT_DISABLED);
+		}
+
+		const passwordMatches = await verifyPassword(
+			loginDto.password,
+			user.passwordHash,
+		);
+		if (!passwordMatches) {
+			await this.recordLoginAttempt({
+				email,
+				userId: user.id,
+				...context,
+				success: false,
+				reason: LoginAttemptReason.INVALID_CREDENTIALS,
+			});
+			throw new UnauthorizedException(
+				AUTH_MESSAGES.LOGIN.INVALID_CREDENTIALS,
+			);
+		}
+
+		if (!user.isEmailVerified) {
+			await this.recordLoginAttempt({
+				email,
+				userId: user.id,
+				...context,
+				success: false,
+				reason: LoginAttemptReason.EMAIL_NOT_VERIFIED,
+			});
+			throw new UnauthorizedException(
+				AUTH_MESSAGES.LOGIN.ACCOUNT_NOT_VERIFIED,
+			);
+		}
+
+		const tokens = await this.jwtTokenService.generateTokens(user.id);
+		await this.refreshTokenRepository.create({
+			userId: user.id,
+			tokenHash: await argon2.hash(tokens.refreshToken),
+			expiresAt: new Date(
+				Date.now() + tokens.refreshTokenExpiresIn * 1000,
+			),
+			...context,
+		});
+		await this.recordLoginAttempt({
+			email,
+			userId: user.id,
+			...context,
+			success: true,
+			reason: LoginAttemptReason.SUCCESS,
+		});
+
+		return {
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
+			response: {
+				id: user.id,
+				firstName: user.firstName,
+				lastName: user.lastName,
+				email: user.email,
+				role: user.role,
+				accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+				refreshTokenExpiresIn: tokens.refreshTokenExpiresIn,
+			},
+		};
+	}
+
+	private async recordLoginAttempt(
+		attempt: Parameters<LoginAttemptRepository['create']>[0],
+	): Promise<void> {
+		try {
+			await this.loginAttemptRepository.create(attempt);
+		} catch (error: unknown) {
+			this.logger.error('Failed to record login attempt', error);
+		}
+	}
+
+	async register(registerDto: RegisterDto): Promise<RegisterResponseDto> {
+		const { email, password, firstName, lastName } = registerDto;
+		const normalizedEmail = email.toLowerCase();
+
+		const existingUser =
+			await this.userRepository.findByEmail(normalizedEmail);
 		if (existingUser) {
 			throw new ConflictException(
 				AUTH_MESSAGES.REGISTRATION.EMAIL_ALREADY_EXISTS,
@@ -40,16 +169,27 @@ export class AuthService {
 		const passwordHash = await hashPassword(password);
 
 		const createUser: CreateUserModel = {
-			email: email.toLowerCase(),
+			email: normalizedEmail,
 			passwordHash,
 			firstName,
 			lastName,
-			role: role || UserRole.CLIENT,
+			role: UserRole.CLIENT,
 			isActive: true,
 			isEmailVerified: false,
 		};
 
-		const user = await this.userRepository.create(createUser);
+		let user: Awaited<ReturnType<UserRepository['create']>>;
+		try {
+			user = await this.userRepository.create(createUser);
+		} catch (error: unknown) {
+			if (this.isDuplicateEmailError(error)) {
+				throw new ConflictException(
+					AUTH_MESSAGES.REGISTRATION.EMAIL_ALREADY_EXISTS,
+				);
+			}
+
+			throw error;
+		}
 
 		const tokenResult =
 			await this.tokenService.createEmailVerificationToken(user.id);
@@ -77,6 +217,19 @@ export class AuthService {
 			createdAt: user.createdAt.toISOString(),
 			message: AUTH_MESSAGES.REGISTRATION.SUCCESS,
 		};
+	}
+
+	private isDuplicateEmailError(error: unknown): boolean {
+		return (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			error.code === 11000 &&
+			'keyPattern' in error &&
+			typeof error.keyPattern === 'object' &&
+			error.keyPattern !== null &&
+			'email' in error.keyPattern
+		);
 	}
 
 	async verifyEmail(token: string, userId: string): Promise<string> {
