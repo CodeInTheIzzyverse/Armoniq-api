@@ -9,6 +9,7 @@ describe('TokenService', () => {
 		create: vi.fn().mockResolvedValue(undefined),
 		markAsUsed: vi.fn().mockResolvedValue(undefined),
 		findByTokenHashAndType: vi.fn(),
+		findByUserIdAndType: vi.fn(),
 	};
 	const service = new TokenService(
 		authTokenRepository as unknown as AuthTokenRepository,
@@ -29,6 +30,20 @@ describe('TokenService', () => {
 				tokenHash: result.tokenHash,
 				type: AuthTokenType.EMAIL_VERIFICATION,
 			}),
+		);
+	});
+
+	it('creates a short-lived password reset token', async () => {
+		const result = await service.createPasswordResetToken('user-id');
+
+		expect(result.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(
+			15 * 60 * 1000,
+		);
+		expect(
+			authTokenRepository.deactivateTokensByUserAndType,
+		).toHaveBeenCalledWith('user-id', AuthTokenType.PASSWORD_RESET);
+		expect(authTokenRepository.create).toHaveBeenCalledWith(
+			expect.objectContaining({ type: AuthTokenType.PASSWORD_RESET }),
 		);
 	});
 
@@ -56,5 +71,25 @@ describe('TokenService', () => {
 		).toBe(token);
 		await service.markTokenAsUsed('token-id');
 		expect(authTokenRepository.markAsUsed).toHaveBeenCalledWith('token-id');
+	});
+
+	it('finds a valid token by user and type without accepting expired tokens', async () => {
+		const hash = await service.createPasswordResetToken('user-id');
+		authTokenRepository.findByUserIdAndType.mockResolvedValue([
+			{
+				id: 'token-id',
+				userId: 'user-id',
+				tokenHash: hash.tokenHash,
+				expiresAt: hash.expiresAt,
+			},
+		]);
+
+		expect(
+			await service.findValidToken(
+				'user-id',
+				AuthTokenType.PASSWORD_RESET,
+				hash.token,
+			),
+		).toMatchObject({ id: 'token-id' });
 	});
 });

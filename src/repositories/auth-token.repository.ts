@@ -54,6 +54,23 @@ export class AuthTokenRepository {
 		return token ? this.mapToModel(token as AuthTokenDocument) : null;
 	}
 
+	async findByUserIdAndType(
+		userId: string,
+		type: AuthTokenType,
+	): Promise<AuthTokenModel[]> {
+		const tokens = await this.authTokenModel
+			.find({
+				userId: new Types.ObjectId(userId),
+				type,
+				usedAt: { $exists: false },
+			})
+			.lean()
+			.exec();
+		return tokens.map((token) =>
+			this.mapToModel(token as AuthTokenDocument),
+		);
+	}
+
 	async markAsUsed(id: string): Promise<void> {
 		await this.authTokenModel
 			.findByIdAndUpdate(id, { usedAt: new Date() })

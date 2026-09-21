@@ -27,6 +27,7 @@ import { RefreshTokenRepository } from '../../repositories/refresh-token.reposit
 import { JwtStrategy } from '../../strategies/jwt.strategy';
 import { EmailModule } from '../../integrations/email/email.module';
 import { UserRegisteredHandler } from '../../events/user-registered.handler';
+import { PasswordResetRequestedHandler } from '../../events/password-reset-requested.handler';
 
 @Module({
 	imports: [
@@ -76,6 +77,7 @@ import { UserRegisteredHandler } from '../../events/user-registered.handler';
 		TokenService,
 		JwtStrategy,
 		UserRegisteredHandler,
+		PasswordResetRequestedHandler,
 	],
 	exports: [AuthService, JwtTokenService, JwtStrategy, PassportModule],
 })

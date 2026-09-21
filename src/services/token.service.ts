@@ -36,6 +36,25 @@ export class TokenService {
 		return { token, tokenHash, expiresAt };
 	}
 
+	async createPasswordResetToken(userId: string): Promise<CreateTokenResult> {
+		const token = crypto.randomBytes(32).toString('hex');
+		const tokenHash = await argon2.hash(token);
+		const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+		await this.authTokenRepository.deactivateTokensByUserAndType(
+			userId,
+			AuthTokenType.PASSWORD_RESET,
+		);
+		await this.authTokenRepository.create({
+			userId,
+			tokenHash,
+			type: AuthTokenType.PASSWORD_RESET,
+			expiresAt,
+		});
+
+		return { token, tokenHash, expiresAt };
+	}
+
 	async verifyToken(token: string, tokenHash: string): Promise<boolean> {
 		try {
 			return await argon2.verify(tokenHash, token);
@@ -50,5 +69,22 @@ export class TokenService {
 
 	async findTokenByHashAndType(tokenHash: string, type: AuthTokenType) {
 		return this.authTokenRepository.findByTokenHashAndType(tokenHash, type);
+	}
+
+	async findValidToken(userId: string, type: AuthTokenType, token: string) {
+		const tokens = await this.authTokenRepository.findByUserIdAndType(
+			userId,
+			type,
+		);
+		for (const candidate of tokens) {
+			if (
+				candidate.expiresAt > new Date() &&
+				(await this.verifyToken(token, candidate.tokenHash))
+			) {
+				return candidate;
+			}
+		}
+
+		return null;
 	}
 }

@@ -13,14 +13,16 @@ import { AuthTokenType, LoginAttemptReason, UserRole } from '../enums';
 import {
 	LoginDto,
 	LoginResponseDto,
+	ForgotPasswordDto,
 	RegisterDto,
 	RegisterResponseDto,
+	ResetPasswordDto,
 } from '../dto/auth';
 import { UserRegisteredEvent } from '../events/user-registered.event';
+import { PasswordResetRequestedEvent } from '../events/password-reset-requested.event';
 import { CreateUserModel } from '../models/user.model';
 import { UserRepository } from '../repositories/user.repository';
 import { TokenService } from './token.service';
-import { AuthTokenRepository } from '../repositories/auth-token.repository';
 import { LoginAttemptRepository } from '../repositories/login-attempt.repository';
 import { RefreshTokenRepository } from '../repositories/refresh-token.repository';
 import { hashPassword, verifyPassword } from '../utils/password';
@@ -51,7 +53,6 @@ export class AuthService {
 		private readonly userRepository: UserRepository,
 		private readonly tokenService: TokenService,
 		private readonly jwtTokenService: JwtTokenService,
-		private readonly authTokenRepository: AuthTokenRepository,
 		private readonly loginAttemptRepository: LoginAttemptRepository,
 		private readonly refreshTokenRepository: RefreshTokenRepository,
 		private readonly eventEmitter: EventEmitter2,
@@ -342,9 +343,10 @@ export class AuthService {
 			);
 		}
 
-		const authToken = await this.authTokenRepository.findByTokenHashAndType(
-			token,
+		const authToken = await this.tokenService.findValidToken(
+			userId,
 			AuthTokenType.EMAIL_VERIFICATION,
+			token,
 		);
 
 		if (!authToken) {
@@ -365,28 +367,63 @@ export class AuthService {
 			);
 		}
 
-		if (authToken.expiresAt < new Date()) {
-			throw new BadRequestException(
-				AUTH_MESSAGES.EMAIL_VERIFICATION.INVALID_TOKEN,
-			);
-		}
-
-		const isValid = await this.tokenService.verifyToken(
-			token,
-			authToken.tokenHash,
-		);
-		if (!isValid) {
-			throw new BadRequestException(
-				AUTH_MESSAGES.EMAIL_VERIFICATION.INVALID_TOKEN,
-			);
-		}
-
 		await this.userRepository.updateEmailVerification(user.id, true);
 		await this.tokenService.markTokenAsUsed(authToken.id);
 
 		this.logger.log(`Email verified successfully for user: ${user.email}`);
 
 		return AUTH_MESSAGES.EMAIL_VERIFICATION.SUCCESS;
+	}
+
+	async forgotPassword(
+		forgotPasswordDto: ForgotPasswordDto,
+	): Promise<string> {
+		const user = await this.userRepository.findByEmail(
+			forgotPasswordDto.email.toLowerCase(),
+		);
+		if (user && user.isActive) {
+			const token = await this.tokenService.createPasswordResetToken(
+				user.id,
+			);
+			this.eventEmitter.emit(
+				'password.reset.requested',
+				new PasswordResetRequestedEvent(
+					user.id,
+					user.email,
+					user.firstName,
+					token.token,
+				),
+			);
+		}
+
+		return AUTH_MESSAGES.PASSWORD_RESET.REQUEST_SUCCESS;
+	}
+
+	async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<string> {
+		const authToken = await this.tokenService.findValidToken(
+			resetPasswordDto.userId,
+			AuthTokenType.PASSWORD_RESET,
+			resetPasswordDto.token,
+		);
+		if (!authToken) {
+			throw new BadRequestException(
+				AUTH_MESSAGES.PASSWORD_RESET.INVALID_TOKEN,
+			);
+		}
+
+		const user = await this.userRepository.findById(authToken.userId);
+		if (!user || !user.isActive) {
+			throw new BadRequestException(
+				AUTH_MESSAGES.PASSWORD_RESET.INVALID_TOKEN,
+			);
+		}
+
+		await this.userRepository.update(user.id, {
+			passwordHash: await hashPassword(resetPasswordDto.newPassword),
+		});
+		await this.tokenService.markTokenAsUsed(authToken.id);
+		await this.refreshTokenRepository.revokeAllByUserId(user.id);
+		return AUTH_MESSAGES.PASSWORD_RESET.RESET_SUCCESS;
 	}
 
 	async resendVerificationEmail(email: string): Promise<string> {

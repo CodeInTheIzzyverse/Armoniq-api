@@ -34,4 +34,5 @@ export interface UpdateUserModel {
 	avatar?: string;
 	isActive?: boolean;
 	isEmailVerified?: boolean;
+	passwordHash?: string;
 }

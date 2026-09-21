@@ -5,3 +5,5 @@ export { ResendVerificationDto } from './resend-verification.dto';
 export { MessageResponseDto } from './message-response.dto';
 export { LoginDto } from './login.dto';
 export { LoginResponseDto } from './login-response.dto';
+export { ForgotPasswordDto } from './forgot-password.dto';
+export { ResetPasswordDto } from './reset-password.dto';

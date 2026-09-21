@@ -38,6 +38,8 @@ export const AUTH_MESSAGES = {
 		RESET_SUCCESS:
 			'Password has been reset successfully. You can now log in with your new password.',
 		INVALID_TOKEN: 'Invalid or expired password reset token.',
+		EMAIL_SENT:
+			'If your email is registered, you will receive a password reset link.',
 		WEAK_PASSWORD:
 			'New password must be at least 8 characters long and include uppercase, lowercase, number, and special character.',
 	},

@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { EmailConfig } from '../../config/email.config';
-import { buildWelcomeEmailTemplate } from './templates';
+import {
+	buildEmailVerificationTemplate,
+	buildPasswordResetTemplate,
+	buildWelcomeEmailTemplate,
+} from './templates';
 
 @Injectable()
 export class EmailService {
@@ -61,6 +65,52 @@ export class EmailService {
 		} catch (error) {
 			this.logger.error(`Failed to send welcome email to ${to}`, error);
 			throw new Error('Failed to send welcome email');
+		}
+	}
+
+	async sendEmailVerificationEmail(
+		to: string,
+		userName: string,
+		verificationUrl: string,
+	): Promise<void> {
+		await this.sendTemplateEmail(
+			to,
+			'Verify your Armoniq email',
+			buildEmailVerificationTemplate({ userName, verificationUrl }),
+		);
+	}
+
+	async sendPasswordResetEmail(
+		to: string,
+		userName: string,
+		resetUrl: string,
+	): Promise<void> {
+		await this.sendTemplateEmail(
+			to,
+			'Reset your Armoniq password',
+			buildPasswordResetTemplate({ userName, resetUrl }),
+		);
+	}
+
+	private async sendTemplateEmail(
+		to: string,
+		subject: string,
+		html: string,
+	): Promise<void> {
+		try {
+			const result = await this.resend.emails.send({
+				from: `${this.fromName} <${this.fromEmail}>`,
+				to,
+				subject,
+				html,
+			});
+
+			if (result.error) {
+				throw new Error('Failed to send email');
+			}
+		} catch (error) {
+			this.logger.error(`Failed to send email to ${to}`, error);
+			throw new Error('Failed to send email');
 		}
 	}
 }

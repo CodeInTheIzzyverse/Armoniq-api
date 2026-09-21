@@ -6,8 +6,10 @@ import { AuthController } from '../../../src/controllers/auth.controller';
 import { AuthService } from '../../../src/services/auth.service';
 import {
 	LoginDto,
+	ForgotPasswordDto,
 	RegisterDto,
 	ResendVerificationDto,
+	ResetPasswordDto,
 } from '../../../src/dto/auth';
 import type { Request, Response } from 'express';
 import { UserRole } from '../../../src/enums';
@@ -40,6 +42,8 @@ describe('AuthController', () => {
 						login: vi.fn(),
 						refresh: vi.fn(),
 						logout: vi.fn(),
+						forgotPassword: vi.fn(),
+						resetPassword: vi.fn(),
 						verifyEmail: vi.fn(),
 						resendVerificationEmail: vi.fn(),
 					},
@@ -155,6 +159,41 @@ describe('AuthController', () => {
 
 			expect(result.message).toBe(AUTH_MESSAGES.LOGOUT.SUCCESS);
 			expect(clearCookieSpy).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	describe('password recovery', () => {
+		it('returns the forgot-password service response', async () => {
+			const dto: ForgotPasswordDto = { email: 'user@example.com' };
+			const forgotSpy = vi
+				.spyOn(authService, 'forgotPassword')
+				.mockResolvedValue(
+					AUTH_MESSAGES.PASSWORD_RESET.REQUEST_SUCCESS,
+				);
+
+			const result = await controller.forgotPassword(dto);
+
+			expect(result.message).toBe(
+				AUTH_MESSAGES.PASSWORD_RESET.REQUEST_SUCCESS,
+			);
+			expect(forgotSpy).toHaveBeenCalledWith(dto);
+		});
+
+		it('returns the reset-password service response', async () => {
+			const dto: ResetPasswordDto = {
+				userId: '507f1f77bcf86cd799439011',
+				token: 'reset-token',
+				newPassword: 'NewSecurePass123!',
+			};
+			vi.spyOn(authService, 'resetPassword').mockResolvedValue(
+				AUTH_MESSAGES.PASSWORD_RESET.RESET_SUCCESS,
+			);
+
+			const result = await controller.resetPassword(dto);
+
+			expect(result.message).toBe(
+				AUTH_MESSAGES.PASSWORD_RESET.RESET_SUCCESS,
+			);
 		});
 	});
 

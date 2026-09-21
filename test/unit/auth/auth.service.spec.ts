@@ -9,7 +9,6 @@ import {
 import { AuthService } from '../../../src/services/auth.service';
 import { UserRepository } from '../../../src/repositories/user.repository';
 import { TokenService } from '../../../src/services/token.service';
-import { AuthTokenRepository } from '../../../src/repositories/auth-token.repository';
 import {
 	AuthTokenType,
 	LoginAttemptReason,
@@ -26,7 +25,6 @@ describe('AuthService', () => {
 	let service: AuthService;
 	let userRepository: UserRepository;
 	let tokenService: TokenService;
-	let authTokenRepository: AuthTokenRepository;
 	let eventEmitter: EventEmitter2;
 	let jwtTokenService: JwtTokenService;
 	let loginAttemptRepository: LoginAttemptRepository;
@@ -55,6 +53,7 @@ describe('AuthService', () => {
 						create: vi.fn(),
 						findByEmail: vi.fn(),
 						findById: vi.fn(),
+						update: vi.fn(),
 						updateEmailVerification: vi.fn(),
 					},
 				},
@@ -62,8 +61,10 @@ describe('AuthService', () => {
 					provide: TokenService,
 					useValue: {
 						createEmailVerificationToken: vi.fn(),
+						createPasswordResetToken: vi.fn(),
 						verifyToken: vi.fn(),
 						markTokenAsUsed: vi.fn(),
+						findValidToken: vi.fn(),
 					},
 				},
 				{
@@ -71,12 +72,6 @@ describe('AuthService', () => {
 					useValue: {
 						generateTokens: vi.fn(),
 						verifyRefreshToken: vi.fn(),
-					},
-				},
-				{
-					provide: AuthTokenRepository,
-					useValue: {
-						findByTokenHashAndType: vi.fn(),
 					},
 				},
 				{
@@ -106,8 +101,6 @@ describe('AuthService', () => {
 		service = module.get<AuthService>(AuthService);
 		userRepository = module.get<UserRepository>(UserRepository);
 		tokenService = module.get<TokenService>(TokenService);
-		authTokenRepository =
-			module.get<AuthTokenRepository>(AuthTokenRepository);
 		eventEmitter = module.get<EventEmitter2>(EventEmitter2);
 		jwtTokenService = module.get<JwtTokenService>(JwtTokenService);
 		loginAttemptRepository = module.get<LoginAttemptRepository>(
@@ -446,6 +439,94 @@ describe('AuthService', () => {
 		});
 	});
 
+	describe('password recovery', () => {
+		it('sends a reset event for an active user without exposing account state', async () => {
+			const createTokenSpy = vi
+				.spyOn(tokenService, 'createPasswordResetToken')
+				.mockResolvedValue({
+					token: 'reset-token',
+					tokenHash: 'reset-hash',
+					expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+				});
+			const emitSpy = vi.spyOn(eventEmitter, 'emit');
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue({
+				...mockUser,
+				isActive: true,
+			});
+
+			const result = await service.forgotPassword({
+				email: 'TEST@example.com',
+			});
+
+			expect(result).toBe(AUTH_MESSAGES.PASSWORD_RESET.REQUEST_SUCCESS);
+			expect(createTokenSpy).toHaveBeenCalledWith(mockUser.id);
+			expect(emitSpy).toHaveBeenCalledWith(
+				'password.reset.requested',
+				expect.any(Object),
+			);
+		});
+
+		it('returns the same forgot-password response for unknown users', async () => {
+			vi.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
+
+			expect(
+				await service.forgotPassword({ email: 'unknown@example.com' }),
+			).toBe(AUTH_MESSAGES.PASSWORD_RESET.REQUEST_SUCCESS);
+		});
+
+		it('resets the password and consumes the reset token', async () => {
+			const updateSpy = vi
+				.spyOn(userRepository, 'update')
+				.mockResolvedValue({ ...mockUser });
+			vi.spyOn(tokenService, 'findValidToken').mockResolvedValue({
+				id: 'reset-id',
+				userId: mockUser.id,
+				tokenHash: 'hash',
+				type: AuthTokenType.PASSWORD_RESET,
+				expiresAt: new Date(Date.now() + 60_000),
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+			vi.spyOn(userRepository, 'findById').mockResolvedValue({
+				...mockUser,
+				isActive: true,
+			});
+			const markUsedSpy = vi
+				.spyOn(tokenService, 'markTokenAsUsed')
+				.mockResolvedValue();
+			const revokeAllSpy = vi.spyOn(
+				refreshTokenRepository,
+				'revokeAllByUserId',
+			);
+
+			expect(
+				await service.resetPassword({
+					userId: mockUser.id,
+					token: 'reset-token',
+					newPassword: 'NewSecurePass123!',
+				}),
+			).toBe(AUTH_MESSAGES.PASSWORD_RESET.RESET_SUCCESS);
+			const updatedPasswordHash =
+				updateSpy.mock.calls[0]?.[1].passwordHash;
+			expect(typeof updatedPasswordHash).toBe('string');
+			expect(updatedPasswordHash).not.toBe('NewSecurePass123!');
+			expect(markUsedSpy).toHaveBeenCalledWith('reset-id');
+			expect(revokeAllSpy).toHaveBeenCalledWith(mockUser.id);
+		});
+
+		it('rejects an invalid reset token', async () => {
+			vi.spyOn(tokenService, 'findValidToken').mockResolvedValue(null);
+
+			await expect(
+				service.resetPassword({
+					userId: mockUser.id,
+					token: 'invalid',
+					newPassword: 'NewSecurePass123!',
+				}),
+			).rejects.toThrow(AUTH_MESSAGES.PASSWORD_RESET.INVALID_TOKEN);
+		});
+	});
+
 	describe('verifyEmail', () => {
 		const token = 'verification-token';
 		const userId = '507f1f77bcf86cd799439011';
@@ -466,7 +547,7 @@ describe('AuthService', () => {
 				.spyOn(userRepository, 'findById')
 				.mockResolvedValue(mockUser);
 			const findTokenSpy = vi
-				.spyOn(authTokenRepository, 'findByTokenHashAndType')
+				.spyOn(tokenService, 'findValidToken')
 				.mockResolvedValue(mockAuthToken);
 			const verifyTokenSpy = vi
 				.spyOn(tokenService, 'verifyToken')
@@ -486,13 +567,11 @@ describe('AuthService', () => {
 			expect(result).toBe(AUTH_MESSAGES.EMAIL_VERIFICATION.SUCCESS);
 			expect(findByIdSpy).toHaveBeenCalledWith(userId);
 			expect(findTokenSpy).toHaveBeenCalledWith(
-				token,
+				userId,
 				AuthTokenType.EMAIL_VERIFICATION,
-			);
-			expect(verifyTokenSpy).toHaveBeenCalledWith(
 				token,
-				mockAuthToken.tokenHash,
 			);
+			expect(verifyTokenSpy).not.toHaveBeenCalled();
 			expect(updateSpy).toHaveBeenCalledWith(userId, true);
 			expect(markUsedSpy).toHaveBeenCalledWith('token-id');
 		});
@@ -521,10 +600,7 @@ describe('AuthService', () => {
 
 		it('should throw BadRequestException if token is invalid', async () => {
 			vi.spyOn(userRepository, 'findById').mockResolvedValue(mockUser);
-			vi.spyOn(
-				authTokenRepository,
-				'findByTokenHashAndType',
-			).mockResolvedValue(null);
+			vi.spyOn(tokenService, 'findValidToken').mockResolvedValue(null);
 
 			await expect(service.verifyEmail(token, userId)).rejects.toThrow(
 				BadRequestException,
@@ -535,22 +611,8 @@ describe('AuthService', () => {
 		});
 
 		it('should throw BadRequestException if token is expired', async () => {
-			const mockAuthToken = {
-				id: 'token-id',
-				userId,
-				tokenHash: 'hashed-token',
-				type: AuthTokenType.EMAIL_VERIFICATION,
-				expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // expired
-				usedAt: undefined,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			};
-
 			vi.spyOn(userRepository, 'findById').mockResolvedValue(mockUser);
-			vi.spyOn(
-				authTokenRepository,
-				'findByTokenHashAndType',
-			).mockResolvedValue(mockAuthToken);
+			vi.spyOn(tokenService, 'findValidToken').mockResolvedValue(null);
 
 			await expect(service.verifyEmail(token, userId)).rejects.toThrow(
 				BadRequestException,

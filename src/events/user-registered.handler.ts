@@ -29,7 +29,7 @@ export class UserRegisteredHandler {
 		const verificationUrl = `${frontendUrl}/${apiPrefix}/v1/auth/verify-email?token=${verificationToken}&userId=${userId}`;
 
 		try {
-			await this.emailService.sendWelcomeEmail(
+			await this.emailService.sendEmailVerificationEmail(
 				email,
 				firstName,
 				verificationUrl,

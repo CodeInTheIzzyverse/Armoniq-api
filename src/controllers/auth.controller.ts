@@ -29,6 +29,8 @@ import {
 	MessageResponseDto,
 	LoginDto,
 	LoginResponseDto,
+	ForgotPasswordDto,
+	ResetPasswordDto,
 } from '../dto/auth';
 import { ApiErrorResponse } from '../dto/api-error-response.dto';
 import { API_ROUTES } from '../constants/routes';
@@ -196,6 +198,47 @@ export class AuthController {
 	): Promise<MessageResponseDto> {
 		const message = await this.authService.verifyEmail(token, userId);
 		return { message };
+	}
+
+	@Post(API_ROUTES.AUTH.FORGOT_PASSWORD)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Request a password reset',
+		description:
+			'Sends a short-lived password reset link without revealing whether the email exists.',
+	})
+	@ApiOkResponse({
+		description: 'Password reset request accepted',
+		type: MessageResponseDto,
+	})
+	async forgotPassword(
+		@Body() forgotPasswordDto: ForgotPasswordDto,
+	): Promise<MessageResponseDto> {
+		return {
+			message: await this.authService.forgotPassword(forgotPasswordDto),
+		};
+	}
+
+	@Post(API_ROUTES.AUTH.RESET_PASSWORD)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Reset a password',
+		description: 'Consumes a single-use, short-lived password reset token.',
+	})
+	@ApiOkResponse({
+		description: 'Password reset successfully',
+		type: MessageResponseDto,
+	})
+	@ApiBadRequestResponse({
+		description: 'Invalid, expired, or already used reset token',
+		type: ApiErrorResponse,
+	})
+	async resetPassword(
+		@Body() resetPasswordDto: ResetPasswordDto,
+	): Promise<MessageResponseDto> {
+		return {
+			message: await this.authService.resetPassword(resetPasswordDto),
+		};
 	}
 
 	@Post(API_ROUTES.AUTH.RESEND_VERIFICATION)
