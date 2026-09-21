@@ -70,6 +70,7 @@ describe('AuthService', () => {
 					provide: JwtTokenService,
 					useValue: {
 						generateTokens: vi.fn(),
+						verifyRefreshToken: vi.fn(),
 					},
 				},
 				{
@@ -94,6 +95,9 @@ describe('AuthService', () => {
 					provide: RefreshTokenRepository,
 					useValue: {
 						create: vi.fn(),
+						findByUserId: vi.fn(),
+						revoke: vi.fn(),
+						revokeAllByUserId: vi.fn(),
 					},
 				},
 			],
@@ -248,6 +252,101 @@ describe('AuthService', () => {
 					success: false,
 				}),
 			);
+		});
+	});
+
+	describe('refresh', () => {
+		const context = { ip: '127.0.0.1', userAgent: 'vitest' };
+		const rawRefreshToken = 'refresh-token';
+
+		it('rotates a valid refresh token and revokes its predecessor', async () => {
+			const tokenHash = await hashPassword(rawRefreshToken);
+			vi.spyOn(jwtTokenService, 'verifyRefreshToken').mockReturnValue({
+				sub: mockUser.id,
+				email: mockUser.email,
+				role: mockUser.role,
+			});
+			vi.spyOn(userRepository, 'findById').mockResolvedValue({
+				...mockUser,
+				isEmailVerified: true,
+			});
+			vi.spyOn(refreshTokenRepository, 'findByUserId').mockResolvedValue([
+				{
+					id: 'old-token-id',
+					userId: mockUser.id,
+					tokenHash,
+					expiresAt: new Date(Date.now() + 60_000),
+				},
+			]);
+			vi.spyOn(jwtTokenService, 'generateTokens').mockResolvedValue({
+				accessToken: 'new-access-token',
+				refreshToken: 'new-refresh-token',
+				accessTokenExpiresIn: 900,
+				refreshTokenExpiresIn: 2_592_000,
+			});
+			const createSpy = vi
+				.spyOn(refreshTokenRepository, 'create')
+				.mockResolvedValue({
+					id: 'new-token-id',
+					userId: mockUser.id,
+					tokenHash: 'new-hash',
+					expiresAt: new Date(Date.now() + 60_000),
+				});
+			const revokeSpy = vi.spyOn(refreshTokenRepository, 'revoke');
+
+			const result = await service.refresh(rawRefreshToken, context);
+
+			expect(result.refreshToken).toBe('new-refresh-token');
+			expect(createSpy).toHaveBeenCalledWith(
+				expect.objectContaining({ userId: mockUser.id }),
+			);
+			expect(revokeSpy).toHaveBeenCalledWith(
+				'old-token-id',
+				'new-token-id',
+			);
+		});
+
+		it('revokes all sessions when a refresh token is invalid or reused', async () => {
+			vi.spyOn(jwtTokenService, 'verifyRefreshToken').mockReturnValue({
+				sub: mockUser.id,
+				email: mockUser.email,
+				role: mockUser.role,
+			});
+			vi.spyOn(refreshTokenRepository, 'findByUserId').mockResolvedValue(
+				[],
+			);
+			const revokeAllSpy = vi.spyOn(
+				refreshTokenRepository,
+				'revokeAllByUserId',
+			);
+
+			await expect(
+				service.refresh(rawRefreshToken, context),
+			).rejects.toThrow(AUTH_MESSAGES.TOKEN.INVALID);
+			expect(revokeAllSpy).toHaveBeenCalledWith(mockUser.id);
+		});
+
+		it('revokes a valid refresh token during logout', async () => {
+			const tokenHash = await hashPassword(rawRefreshToken);
+			vi.spyOn(jwtTokenService, 'verifyRefreshToken').mockReturnValue({
+				sub: mockUser.id,
+				email: mockUser.email,
+				role: mockUser.role,
+			});
+			vi.spyOn(refreshTokenRepository, 'findByUserId').mockResolvedValue([
+				{
+					id: 'token-id',
+					userId: mockUser.id,
+					tokenHash,
+					expiresAt: new Date(Date.now() + 60_000),
+				},
+			]);
+			const revokeSpy = vi.spyOn(refreshTokenRepository, 'revoke');
+
+			expect(await service.logout(rawRefreshToken)).toBe(
+				AUTH_MESSAGES.LOGOUT.SUCCESS,
+			);
+			expect(revokeSpy).toHaveBeenCalledWith('token-id');
 		});
 	});
 

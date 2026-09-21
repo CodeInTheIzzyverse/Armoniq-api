@@ -7,6 +7,7 @@ import {
 	Query,
 	Req,
 	Res,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
@@ -17,6 +18,7 @@ import {
 	ApiOkResponse,
 	ApiOperation,
 	ApiQuery,
+	ApiUnauthorizedResponse,
 	ApiTags,
 } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
@@ -30,6 +32,8 @@ import {
 } from '../dto/auth';
 import { ApiErrorResponse } from '../dto/api-error-response.dto';
 import { API_ROUTES } from '../constants/routes';
+import { AUTH_COOKIES } from '../constants/auth-cookies';
+import { AUTH_MESSAGES } from '../constants/auth-messages';
 
 @ApiTags('Authentication')
 @Controller(API_ROUTES.AUTH.BASE)
@@ -66,20 +70,72 @@ export class AuthController {
 		const secure =
 			this.configService.get<string>('app.nodeEnv') === 'production';
 
-		response.cookie('access_token', result.accessToken, {
-			httpOnly: true,
-			secure,
-			sameSite: 'lax',
-			maxAge: result.response.accessTokenExpiresIn * 1000,
-		});
-		response.cookie('refresh_token', result.refreshToken, {
-			httpOnly: true,
-			secure,
-			sameSite: 'lax',
-			maxAge: result.response.refreshTokenExpiresIn * 1000,
-		});
+		this.setTokenCookies(response, result, secure);
 
 		return result.response;
+	}
+
+	@Post(API_ROUTES.AUTH.REFRESH)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Rotate refresh token',
+		description:
+			'Validates the refresh token, revokes it, and issues a new access and refresh token pair.',
+	})
+	@ApiOkResponse({
+		description: 'Tokens refreshed successfully',
+		type: LoginResponseDto,
+	})
+	@ApiUnauthorizedResponse({
+		description: 'Invalid, expired, or revoked refresh token',
+		type: ApiErrorResponse,
+	})
+	async refresh(
+		@Req() request: Request,
+		@Res({ passthrough: true }) response: Response,
+	): Promise<LoginResponseDto> {
+		const refreshToken = this.extractRefreshToken(request);
+		if (typeof refreshToken !== 'string') {
+			throw new UnauthorizedException(AUTH_MESSAGES.TOKEN.MISSING);
+		}
+
+		const result = await this.authService.refresh(refreshToken, {
+			ip: request.ip || 'unknown',
+			userAgent: request.get('user-agent') || 'unknown',
+		});
+		this.setTokenCookies(
+			response,
+			result,
+			this.configService.get<string>('app.nodeEnv') === 'production',
+		);
+
+		return result.response;
+	}
+
+	@Post(API_ROUTES.AUTH.LOGOUT)
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: 'Log out a user',
+		description:
+			'Revokes the current refresh token and clears auth cookies.',
+	})
+	@ApiOkResponse({
+		description: 'Logout successful',
+		type: MessageResponseDto,
+	})
+	async logout(
+		@Req() request: Request,
+		@Res({ passthrough: true }) response: Response,
+	): Promise<MessageResponseDto> {
+		const message = await this.authService.logout(
+			this.extractRefreshToken(request),
+		);
+		this.clearTokenCookies(
+			response,
+			this.configService.get<string>('app.nodeEnv') === 'production',
+		);
+
+		return { message };
 	}
 
 	@Post(API_ROUTES.AUTH.REGISTER)
@@ -164,5 +220,46 @@ export class AuthController {
 			resendDto.email,
 		);
 		return { message };
+	}
+
+	private setTokenCookies(
+		response: Response,
+		result: {
+			accessToken: string;
+			refreshToken: string;
+			response: LoginResponseDto;
+		},
+		secure: boolean,
+	): void {
+		response.cookie(AUTH_COOKIES.ACCESS_TOKEN, result.accessToken, {
+			httpOnly: true,
+			secure,
+			sameSite: 'lax',
+			maxAge: result.response.accessTokenExpiresIn * 1000,
+		});
+		response.cookie(AUTH_COOKIES.REFRESH_TOKEN, result.refreshToken, {
+			httpOnly: true,
+			secure,
+			sameSite: 'lax',
+			maxAge: result.response.refreshTokenExpiresIn * 1000,
+		});
+	}
+
+	private clearTokenCookies(response: Response, secure: boolean): void {
+		const options = { httpOnly: true, secure, sameSite: 'lax' as const };
+		response.clearCookie(AUTH_COOKIES.ACCESS_TOKEN, options);
+		response.clearCookie(AUTH_COOKIES.REFRESH_TOKEN, options);
+	}
+
+	private extractRefreshToken(request: Request): string | undefined {
+		const cookies: unknown = request.cookies;
+		if (typeof cookies !== 'object' || cookies === null) {
+			return undefined;
+		}
+
+		const refreshToken = (cookies as Record<string, unknown>)[
+			AUTH_COOKIES.REFRESH_TOKEN
+		];
+		return typeof refreshToken === 'string' ? refreshToken : undefined;
 	}
 }

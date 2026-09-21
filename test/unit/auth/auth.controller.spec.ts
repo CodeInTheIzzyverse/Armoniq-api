@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthController } from '../../../src/controllers/auth.controller';
 import { AuthService } from '../../../src/services/auth.service';
 import {
@@ -37,6 +38,8 @@ describe('AuthController', () => {
 					useValue: {
 						register: vi.fn(),
 						login: vi.fn(),
+						refresh: vi.fn(),
+						logout: vi.fn(),
 						verifyEmail: vi.fn(),
 						resendVerificationEmail: vi.fn(),
 					},
@@ -92,6 +95,66 @@ describe('AuthController', () => {
 				'refresh-token',
 				expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
 			);
+		});
+	});
+
+	describe('refresh', () => {
+		it('rotates cookies using the refresh token cookie', async () => {
+			const cookieSpy = vi.fn();
+			const response = { cookie: cookieSpy } as unknown as Response;
+			const request = {
+				cookies: { refresh_token: 'refresh-token' },
+				ip: '127.0.0.1',
+				get: vi.fn().mockReturnValue('vitest'),
+			} as unknown as Request;
+			const refreshSpy = vi
+				.spyOn(authService, 'refresh')
+				.mockResolvedValue({
+					accessToken: 'new-access-token',
+					refreshToken: 'new-refresh-token',
+					response: {
+						...mockUser,
+						accessTokenExpiresIn: 900,
+						refreshTokenExpiresIn: 2592000,
+					},
+				});
+
+			await controller.refresh(request, response);
+
+			expect(cookieSpy).toHaveBeenCalledTimes(2);
+			expect(refreshSpy).toHaveBeenCalledWith(
+				'refresh-token',
+				expect.objectContaining({ ip: '127.0.0.1' }),
+			);
+		});
+
+		it('rejects a request without a refresh token cookie', async () => {
+			const request = { cookies: {} } as unknown as Request;
+			const response = { cookie: vi.fn() } as unknown as Response;
+
+			await expect(controller.refresh(request, response)).rejects.toThrow(
+				UnauthorizedException,
+			);
+		});
+	});
+
+	describe('logout', () => {
+		it('revokes the refresh token and clears authentication cookies', async () => {
+			const clearCookieSpy = vi.fn();
+			const response = {
+				clearCookie: clearCookieSpy,
+			} as unknown as Response;
+			const request = {
+				cookies: { refresh_token: 'refresh-token' },
+			} as unknown as Request;
+			vi.spyOn(authService, 'logout').mockResolvedValue(
+				AUTH_MESSAGES.LOGOUT.SUCCESS,
+			);
+
+			const result = await controller.logout(request, response);
+
+			expect(result.message).toBe(AUTH_MESSAGES.LOGOUT.SUCCESS);
+			expect(clearCookieSpy).toHaveBeenCalledTimes(2);
 		});
 	});
 

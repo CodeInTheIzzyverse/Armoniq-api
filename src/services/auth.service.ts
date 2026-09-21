@@ -38,6 +38,11 @@ export interface LoginResult {
 	refreshToken: string;
 }
 
+export interface RefreshContext {
+	ip: string;
+	userAgent: string;
+}
+
 @Injectable()
 export class AuthService {
 	private readonly logger = new Logger(AuthService.name);
@@ -142,6 +147,99 @@ export class AuthService {
 				refreshTokenExpiresIn: tokens.refreshTokenExpiresIn,
 			},
 		};
+	}
+
+	async refresh(
+		refreshToken: string,
+		context: RefreshContext,
+	): Promise<LoginResult> {
+		const payload = this.jwtTokenService.verifyRefreshToken(refreshToken);
+		const storedTokens = await this.refreshTokenRepository.findByUserId(
+			payload.sub,
+		);
+		const matchingToken = await this.findRefreshToken(
+			storedTokens,
+			refreshToken,
+		);
+
+		if (
+			!matchingToken ||
+			matchingToken.revokedAt ||
+			matchingToken.expiresAt <= new Date()
+		) {
+			await this.refreshTokenRepository.revokeAllByUserId(payload.sub);
+			throw new UnauthorizedException(AUTH_MESSAGES.TOKEN.INVALID);
+		}
+
+		const user = await this.userRepository.findById(payload.sub);
+		if (!user || !user.isActive || !user.isEmailVerified) {
+			throw new UnauthorizedException(AUTH_MESSAGES.TOKEN.INVALID);
+		}
+
+		const tokens = await this.jwtTokenService.generateTokens(user.id);
+		const replacement = await this.refreshTokenRepository.create({
+			userId: user.id,
+			tokenHash: await argon2.hash(tokens.refreshToken),
+			expiresAt: new Date(
+				Date.now() + tokens.refreshTokenExpiresIn * 1000,
+			),
+			...context,
+		});
+		await this.refreshTokenRepository.revoke(
+			matchingToken.id,
+			replacement.id,
+		);
+
+		return {
+			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
+			response: {
+				id: user.id,
+				firstName: user.firstName,
+				lastName: user.lastName,
+				email: user.email,
+				role: user.role,
+				accessTokenExpiresIn: tokens.accessTokenExpiresIn,
+				refreshTokenExpiresIn: tokens.refreshTokenExpiresIn,
+			},
+		};
+	}
+
+	async logout(refreshToken?: string): Promise<string> {
+		if (refreshToken) {
+			try {
+				const payload =
+					this.jwtTokenService.verifyRefreshToken(refreshToken);
+				const storedTokens =
+					await this.refreshTokenRepository.findByUserId(payload.sub);
+				const matchingToken = await this.findRefreshToken(
+					storedTokens,
+					refreshToken,
+				);
+				if (matchingToken && !matchingToken.revokedAt) {
+					await this.refreshTokenRepository.revoke(matchingToken.id);
+				}
+			} catch {
+				this.logger.warn('Logout received an invalid refresh token');
+			}
+		}
+
+		return AUTH_MESSAGES.LOGOUT.SUCCESS;
+	}
+
+	private async findRefreshToken(
+		storedTokens: Awaited<
+			ReturnType<RefreshTokenRepository['findByUserId']>
+		>,
+		refreshToken: string,
+	) {
+		for (const storedToken of storedTokens) {
+			if (await argon2.verify(storedToken.tokenHash, refreshToken)) {
+				return storedToken;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async recordLoginAttempt(
