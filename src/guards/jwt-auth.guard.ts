@@ -8,7 +8,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 	handleRequest<TUser = unknown>(
 		err: unknown,
 		user: TUser,
-		info: Error,
+		info: Error | null,
 		context: ExecutionContext,
 	): TUser {
 		if (err || !user) {

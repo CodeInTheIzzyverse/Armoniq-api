@@ -69,6 +69,13 @@ describe('UsersService', () => {
 			const result = await service.updateProfile('user-1', updateDto);
 			expect(result.firstName).toBe('Jane');
 		});
+
+		it('should throw NotFoundException if user not found', async () => {
+			mockUserRepository.update.mockResolvedValue(null);
+			await expect(
+				service.updateProfile('nonexistent', {}),
+			).rejects.toThrow(NotFoundException);
+		});
 	});
 
 	describe('findAll', () => {
@@ -94,6 +101,13 @@ describe('UsersService', () => {
 			const result = await service.updateUser('user-1', updateDto);
 			expect(result.role).toBe(UserRole.ADMIN);
 		});
+
+		it('should throw NotFoundException if user not found', async () => {
+			mockUserRepository.update.mockResolvedValue(null);
+			await expect(service.updateUser('nonexistent', {})).rejects.toThrow(
+				NotFoundException,
+			);
+		});
 	});
 
 	describe('deactivateUser', () => {
@@ -103,6 +117,13 @@ describe('UsersService', () => {
 
 			const result = await service.deactivateUser('user-1');
 			expect(result.isActive).toBe(false);
+		});
+
+		it('should throw NotFoundException if user not found', async () => {
+			mockUserRepository.update.mockResolvedValue(null);
+			await expect(service.deactivateUser('nonexistent')).rejects.toThrow(
+				NotFoundException,
+			);
 		});
 	});
 });
