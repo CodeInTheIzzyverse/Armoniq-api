@@ -18,6 +18,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './services/health.service';
 import { HttpExceptionFilter } from './filters/http-exception.filter';
@@ -49,6 +50,7 @@ import { SerializationInterceptor } from './interceptors/serialization.intercept
 			},
 		]),
 		DatabaseModule,
+		UsersModule,
 		AuthModule,
 	],
 	controllers: [AppController, HealthController],

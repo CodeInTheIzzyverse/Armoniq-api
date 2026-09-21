@@ -13,3 +13,4 @@ export {
 	ResendVerificationDto,
 	MessageResponseDto,
 } from './auth';
+export * from './users';

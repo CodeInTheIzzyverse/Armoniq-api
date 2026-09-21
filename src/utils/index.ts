@@ -4,3 +4,4 @@ export {
 	generateEmailVerificationToken,
 	generatePasswordResetToken,
 } from './tokens';
+export { getPaginationOptions } from './pagination';

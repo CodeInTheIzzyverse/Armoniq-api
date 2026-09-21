@@ -60,6 +60,27 @@ export class UserRepository {
 		return count > 0;
 	}
 
+	async findAll(
+		skip: number,
+		limit: number,
+	): Promise<{ users: UserModel[]; total: number }> {
+		const [users, total] = await Promise.all([
+			this.userModel
+				.find()
+				.sort({ createdAt: -1 })
+				.skip(skip)
+				.limit(limit)
+				.lean()
+				.exec(),
+			this.userModel.countDocuments().exec(),
+		]);
+
+		return {
+			users: users.map((u) => this.mapToModel(u as UserDocument)),
+			total,
+		};
+	}
+
 	private mapToModel(user: UserDocument): UserModel {
 		return {
 			id: user._id.toString(),

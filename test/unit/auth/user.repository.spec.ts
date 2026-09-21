@@ -197,4 +197,29 @@ describe('UserRepository', () => {
 			expect(result).toBe(false);
 		});
 	});
+
+	describe('findAll', () => {
+		it('should return paginated users with total count', async () => {
+			MockUserModel.find.mockReturnValue({
+				sort: () => ({
+					skip: () => ({
+						limit: () => ({
+							lean: () => ({
+								exec: () => Promise.resolve([mockUser]),
+							}),
+						}),
+					}),
+				}),
+			});
+			MockUserModel.countDocuments.mockReturnValue({
+				exec: () => Promise.resolve(3),
+			});
+
+			const result = await repository.findAll(0, 10);
+
+			expect(result.users).toHaveLength(1);
+			expect(result.total).toBe(3);
+			expect(result.users[0].email).toBe(mockUser.email);
+		});
+	});
 });

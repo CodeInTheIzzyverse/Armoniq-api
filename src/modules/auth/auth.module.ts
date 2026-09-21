@@ -3,7 +3,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
-import { User, UserSchema } from '../../database/schemas/user.schema';
 import {
 	AuthToken,
 	AuthTokenSchema,
@@ -20,7 +19,7 @@ import { AuthController } from '../../controllers/auth.controller';
 import { AuthService } from '../../services/auth.service';
 import { JwtTokenService } from '../../services/jwt.service';
 import { TokenService } from '../../services/token.service';
-import { UserRepository } from '../../repositories/user.repository';
+import { UsersModule } from '../users/users.module';
 import { AuthTokenRepository } from '../../repositories/auth-token.repository';
 import { LoginAttemptRepository } from '../../repositories/login-attempt.repository';
 import { RefreshTokenRepository } from '../../repositories/refresh-token.repository';
@@ -31,8 +30,8 @@ import { PasswordResetRequestedHandler } from '../../events/password-reset-reque
 
 @Module({
 	imports: [
+		UsersModule,
 		MongooseModule.forFeature([
-			{ name: User.name, schema: UserSchema },
 			{ name: AuthToken.name, schema: AuthTokenSchema },
 			{ name: LoginAttempt.name, schema: LoginAttemptSchema },
 			{ name: RefreshToken.name, schema: RefreshTokenSchema },
@@ -68,7 +67,6 @@ import { PasswordResetRequestedHandler } from '../../events/password-reset-reque
 	],
 	controllers: [AuthController],
 	providers: [
-		UserRepository,
 		AuthTokenRepository,
 		LoginAttemptRepository,
 		RefreshTokenRepository,
